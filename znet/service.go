@@ -55,6 +55,10 @@ func (s *Server) Start() {
 				for {
 					buf := make([]byte, 512)
 					cnt, err := conn.Read(buf)
+					if err != nil {
+						fmt.Println("read client buf error: ", err)
+						continue
+					}
 					if string(buf[:cnt]) == "exit" {
 						fmt.Println("client exit, close connection")
 						err := conn.Close()
@@ -63,10 +67,7 @@ func (s *Server) Start() {
 						}
 						return
 					}
-					if err != nil {
-						fmt.Println("read client buf error: ", err)
-						continue
-					}
+					fmt.Println("rev from client: ", string(buf[:cnt]))
 					_, err = conn.Write(buf[:cnt])
 					if err != nil {
 						fmt.Println("write client buf error: ", err)
