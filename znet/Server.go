@@ -1,6 +1,7 @@
 package znet
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -20,6 +21,16 @@ type Server struct {
 	IP string
 	// 服务器监听的端口
 	Port int
+}
+
+// 每个新建连接需要绑定的处理函数, 这里写死, 后面应该是开发者传入.
+func CallBackToClient(conn *net.TCPConn, data []byte, cnt int) error {
+	fmt.Printf("CallBackToClient: receive from client data: %s, cnt = %d\n", string(data), cnt)
+	if _, err := conn.Write(data); err != nil {
+		fmt.Println("CallBackToClient Write error: ", err)
+		return errors.New("CallBackToClient Write error")
+	}
+	return nil
 }
 
 func (s *Server) Start() {
@@ -43,39 +54,20 @@ func (s *Server) Start() {
 		fmt.Println("start Zinx server succeed, listening...")
 		// 3. accept 客户端的连接请求, 阻塞的等待客户端连接, 处理业务(读写)
 		// 不断地循环处理客户端的连接请求
+		connID := uint32(0)
 		for {
 			conn, err := tcpListener.AcceptTCP()
 			if err != nil {
 				fmt.Println("accept tcp error: ", err)
 				return
 			}
-			// 已经与客户端建立了连接, 开始处理业务. 这里V0.1版本直接回写客户端发送的数据, 限制为512字节长度.
-			// 每一个连接都起一个 goroutine 来处理, 这样就不会阻塞其他连接的处理
-			go func() {
-				for {
-					buf := make([]byte, 512)
-					cnt, err := conn.Read(buf)
-					if err != nil {
-						fmt.Println("read client buf error: ", err)
-						continue
-					}
-					if string(buf[:cnt]) == "exit" {
-						fmt.Println("client exit, close connection")
-						err := conn.Close()
-						if err != nil {
-							return
-						}
-						return
-					}
-					fmt.Println("rev from client: ", string(buf[:cnt]))
-					_, err = conn.Write(buf[:cnt])
-					if err != nil {
-						fmt.Println("write client buf error: ", err)
-						continue
-					}
 
-				}
-			}()
+			// 将新连接conn与callback方法进行绑定, 得到我们自己分装的连接模块
+			c := NewConnection(conn, connID, CallBackToClient)
+			connID++
+
+			go c.Start()
+
 		}
 	}()
 
