@@ -1,7 +1,6 @@
 package znet
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -21,16 +20,8 @@ type Server struct {
 	IP string
 	// 服务器监听的端口
 	Port int
-}
-
-// 每个新建连接需要绑定的处理函数, 这里写死, 后面应该是开发者传入.
-func CallBackToClient(conn *net.TCPConn, data []byte, cnt int) error {
-	fmt.Printf("CallBackToClient: receive from client data: %s, cnt = %d\n", string(data), cnt)
-	if _, err := conn.Write(data); err != nil {
-		fmt.Println("CallBackToClient Write error: ", err)
-		return errors.New("CallBackToClient Write error")
-	}
-	return nil
+	// 当前的Server添加一个 router, Server注册的连接对应的处理业务
+	Router zInterface.IRouter
 }
 
 func (s *Server) Start() {
@@ -63,10 +54,10 @@ func (s *Server) Start() {
 			}
 
 			// 将新连接conn与callback方法进行绑定, 得到我们自己分装的连接模块
-			c := NewConnection(conn, connID, CallBackToClient)
+			dealConn := NewConnection(conn, connID, s.Router)
 			connID++
 
-			go c.Start()
+			go dealConn.Start()
 
 		}
 	}()
@@ -91,6 +82,11 @@ func (s *Server) Serve() {
 	fmt.Println("程序正常退出, 已清理资源")
 }
 
+func (s *Server) AddRouter(router zInterface.IRouter) {
+	s.Router = router
+	fmt.Println("Add Router Succeed!")
+}
+
 // NewServer 初始化 Server 模块的方法
 func NewServer(name string) zInterface.IServer {
 	return &Server{
@@ -98,5 +94,6 @@ func NewServer(name string) zInterface.IServer {
 		IPVersion: "tcp4",
 		IP:        "0.0.0.0",
 		Port:      8999,
+		Router:    nil,
 	}
 }

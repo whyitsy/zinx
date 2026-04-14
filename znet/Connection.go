@@ -13,18 +13,18 @@ type Connection struct {
 
 	isClosed bool
 
-	handleAPI zInterface.HandleFunc
+	ExitChan chan bool // 告知当前连接已经退出/停止的 channel
 
-	ExitChan chan bool
+	Router zInterface.IRouter // 该连接处理的方法Router
 }
 
-func NewConnection(conn *net.TCPConn, connID uint32, callback zInterface.HandleFunc) *Connection {
+func NewConnection(conn *net.TCPConn, connID uint32, router zInterface.IRouter) *Connection {
 	return &Connection{
-		Conn:      conn,
-		ConnID:    connID,
-		handleAPI: callback,
-		isClosed:  false,
-		ExitChan:  make(chan bool, 1),
+		Conn:     conn,
+		ConnID:   connID,
+		isClosed: false,
+		ExitChan: make(chan bool, 1),
+		Router:   router,
 	}
 }
 
@@ -39,13 +39,21 @@ func (c *Connection) startReader() {
 		cnt, err := c.Conn.Read(buf)
 		if err != nil {
 			fmt.Println("read buf error: ", err)
-			continue
-		}
-		// 调用当前连接所绑定的业务方法, 处理客户端请求的消息
-		if err := c.handleAPI(c.Conn, buf[:cnt], cnt); err != nil {
-			fmt.Println("connID = ", c.ConnID, " handle is error: ", err)
 			break
 		}
+
+		req := Request{
+			conn: c,
+			data: buf[:cnt],
+		}
+
+		// 这里是用 goroutine 来处理请求. TODO: 这里用另一个 goroutine 来处理请求 会比继续使用当前的 goroutine 来处理更好吗？
+		go func(request zInterface.IRequest) {
+			c.Router.PreHandle(request)
+			c.Router.Handle(request)
+			c.Router.PostHandle(request)
+		}(&req)
+
 	}
 }
 
