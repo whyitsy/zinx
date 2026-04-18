@@ -14,7 +14,9 @@ type Connection struct {
 
 	isClosed bool
 
-	ExitChan chan bool // 告知当前连接已经退出/停止的 channel
+	ExitChan chan bool // 由 Reader 来 通知 Writer 退出的管道, Reader知道连接是否已经关闭.
+
+	messageChan chan []byte // 无缓冲的管道, 实现将Reader goroutine的数据传给 Writer goroutine, 由 Writer 来负责发送给客户端
 
 	MessageHandler zInterface.IMessageHandler
 }
@@ -25,30 +27,23 @@ func NewConnection(conn *net.TCPConn, connID uint32, messageHandler zInterface.I
 		connID:         connID,
 		isClosed:       false,
 		ExitChan:       make(chan bool, 1),
+		messageChan:    make(chan []byte),
 		MessageHandler: messageHandler,
 	}
 }
 
 // 连接的读业务方法
 func (c *Connection) startReader() {
-	fmt.Println("start reader goroutine... ConnID = ", c.connID)
-	defer fmt.Println("connID =", c.connID, " reader is exit, remote addr is ", c.RemoteAddr())
-	defer c.Stop()
+	fmt.Println("[Reader Goroutine is running] ConnID =", c.connID)
+	defer fmt.Println("[Reader exited!] ConnID =", c.connID)
+	defer c.Stop() // reader 退出了, 就调用 Stop 来关闭连接, 这样就会通知 writer 退出了
 
 	for {
-		//buf := make([]byte, utils.GlobalObject.MaxPackageSize)
-		//cnt, err := c.Conn.Read(buf)
-		//if err != nil {
-		//	fmt.Println("read buf error: ", err)
-		//	break
-		//}
-
 		// region 拆包流程
 		dp := NewDataPack()
 		headerBuf := make([]byte, dp.GetHeadLen())
-		_, err := io.ReadFull(c.conn, headerBuf)
-		if err != nil {
-			fmt.Println("read head error: ", err)
+		if _, err := io.ReadFull(c.conn, headerBuf); err != nil {
+			fmt.Println("read head error: ", err) // wsarecv 错误是Windows系统特有的错误, 在linux上时 io.EOF 错误.
 			break
 		}
 		message, err := dp.UnPack(headerBuf)
@@ -78,16 +73,38 @@ func (c *Connection) startReader() {
 	}
 }
 
+// 将消息发送给写业务, 如果Reader 中需要处理写业务, 就将消息发送给 Writer. 这时mesID 就可以先来区分哪些消息需要处理写业务, 哪些消息只需要处理读业务了
+func (c *Connection) startWriter() {
+	fmt.Println("[Writer Goroutine is running]")
+	defer fmt.Println("[Writer exited!] ConnID =", c.connID)
+
+	// 等待 reader 发送消息或者等待 conn 关闭
+	for {
+		select {
+		case data := <-c.messageChan:
+			// 有数据要写给客户端, 这里是封包之后的数据了
+			if _, err := c.conn.Write(data); err != nil {
+				fmt.Println("writer send data error: ", err)
+				return // 结束本次 writer goroutine
+			}
+		case <-c.ExitChan:
+			// reader 已经退出了, writer 也要退出
+			return
+		}
+	}
+
+}
+
 func (c *Connection) Start() {
 	fmt.Println("Connection Start()... ConnID = ", c.connID)
 	// 先启动从当前连接中读取数据的业务
 	go c.startReader()
-	// TODO 后面需要继续完善从当前连接写数据的业务
+
+	go c.startWriter()
 
 }
 
 func (c *Connection) Stop() {
-	fmt.Println("Connection Stop... ConnID = ", c.connID)
 	if c.isClosed == true {
 		return
 	}
@@ -100,8 +117,12 @@ func (c *Connection) Stop() {
 		return
 	}
 
+	// 通知 writer 退出
+	c.ExitChan <- true
+
 	// 关闭资源
 	close(c.ExitChan)
+	close(c.messageChan)
 }
 
 func (c *Connection) GetTCPConnection() *net.TCPConn {
@@ -131,11 +152,8 @@ func (c *Connection) SendMsg(msgId uint32, data []byte) error {
 		return err
 	}
 
-	// 将 msg 发送给客户端
-	_, err = c.conn.Write(binaryMsg)
-	if err != nil {
-		return err
-	}
+	// 将 msg 发送writer, 由 writer 来负责发送给客户端
+	c.messageChan <- binaryMsg
 
 	return nil
 }
