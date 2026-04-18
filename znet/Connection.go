@@ -3,6 +3,7 @@ package znet
 import (
 	"fmt"
 	"net"
+	"zinx/utils"
 	"zinx/zInterface"
 )
 
@@ -31,11 +32,11 @@ func NewConnection(conn *net.TCPConn, connID uint32, router zInterface.IRouter) 
 // 连接的读业务方法
 func (c *Connection) startReader() {
 	fmt.Println("start reader goroutine... ConnID = ", c.ConnID)
-	defer fmt.Println("connID = ", c.ConnID, " reader is exit, remote addr is ", c.RemoteAddr())
+	defer fmt.Println("connID =", c.ConnID, " reader is exit, remote addr is ", c.RemoteAddr())
 	defer c.Stop()
 
 	for {
-		buf := make([]byte, 512)
+		buf := make([]byte, utils.GlobalObject.MaxPackageSize)
 		cnt, err := c.Conn.Read(buf)
 		if err != nil {
 			fmt.Println("read buf error: ", err)
@@ -53,7 +54,6 @@ func (c *Connection) startReader() {
 			c.Router.Handle(request)
 			c.Router.PostHandle(request)
 		}(&req)
-
 	}
 }
 
@@ -66,7 +66,7 @@ func (c *Connection) Start() {
 }
 
 func (c *Connection) Stop() {
-	fmt.Println("Connection Stop()... ConnID = ", c.ConnID)
+	fmt.Println("Connection Stop... ConnID = ", c.ConnID)
 	if c.isClosed == true {
 		return
 	}

@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"zinx/utils"
 	"zinx/zInterface"
 )
 
@@ -25,8 +26,9 @@ type Server struct {
 }
 
 func (s *Server) Start() {
-	// 启动一个单体服务器需要的步骤:
-	fmt.Println("[Start]-", s.Name, " Server Listening at IP: ", s.IP, " Port: ", s.Port)
+	fmt.Printf("[Zinx] Version %s, MaxConn %d, MaxPackageSize %d\n", utils.GlobalObject.Version, utils.GlobalObject.MaxConn, utils.GlobalObject.MaxPackageSize)
+	fmt.Printf("[Zinx] Server Name: %s\n", s.Name)
+	fmt.Printf("[Start] Server Listening at IP: %s, Port: %d\n", s.IP, s.Port)
 
 	// 启动一个 goroutine 来处理服务器的业务, 这样就不会阻塞后续的 Stop 和 Serve 方法
 	go func() {
@@ -88,12 +90,12 @@ func (s *Server) AddRouter(router zInterface.IRouter) {
 }
 
 // NewServer 初始化 Server 模块的方法
-func NewServer(name string) zInterface.IServer {
+func NewServer() zInterface.IServer {
 	return &Server{
-		Name:      name,
-		IPVersion: "tcp4",
-		IP:        "0.0.0.0",
-		Port:      8999,
+		Name:      utils.GlobalObject.Name,
+		IPVersion: utils.GlobalObject.IPVersion,
+		IP:        utils.GlobalObject.Host,
+		Port:      utils.GlobalObject.TcpPort,
 		Router:    nil,
 	}
 }
