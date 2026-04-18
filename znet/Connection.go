@@ -16,16 +16,16 @@ type Connection struct {
 
 	ExitChan chan bool // 告知当前连接已经退出/停止的 channel
 
-	Router zInterface.IRouter // 该连接处理的方法 Router
+	MessageHandler zInterface.IMessageHandler
 }
 
-func NewConnection(conn *net.TCPConn, connID uint32, router zInterface.IRouter) *Connection {
+func NewConnection(conn *net.TCPConn, connID uint32, messageHandler zInterface.IMessageHandler) *Connection {
 	return &Connection{
-		conn:     conn,
-		connID:   connID,
-		isClosed: false,
-		ExitChan: make(chan bool, 1),
-		Router:   router,
+		conn:           conn,
+		connID:         connID,
+		isClosed:       false,
+		ExitChan:       make(chan bool, 1),
+		MessageHandler: messageHandler,
 	}
 }
 
@@ -74,11 +74,7 @@ func (c *Connection) startReader() {
 		}
 
 		// 这里是用 goroutine 来处理请求. TODO: 这里用另一个 goroutine 来处理请求 会比继续使用当前的 goroutine 来处理更好吗？
-		go func(request zInterface.IRequest) {
-			c.Router.PreHandle(request)
-			c.Router.Handle(request)
-			c.Router.PostHandle(request)
-		}(&req)
+		go c.MessageHandler.DoMessageHandler(&req)
 	}
 }
 

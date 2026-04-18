@@ -22,7 +22,7 @@ type Server struct {
 	// 服务器监听的端口
 	Port int
 	// 当前的Server添加一个 router, Server注册的连接对应的处理业务
-	Router zInterface.IRouter
+	MessageHandler zInterface.IMessageHandler
 }
 
 func (s *Server) Start() {
@@ -56,7 +56,7 @@ func (s *Server) Start() {
 			}
 			fmt.Printf("=========[Zinx] new connection id = %d===========\n", connID)
 			// 将新连接conn与callback方法进行绑定, 得到我们自己分装的连接模块
-			dealConn := NewConnection(conn, connID, s.Router)
+			dealConn := NewConnection(conn, connID, s.MessageHandler)
 			connID++
 
 			go dealConn.Start()
@@ -84,18 +84,17 @@ func (s *Server) Serve() {
 	fmt.Println("程序正常退出, 已清理资源")
 }
 
-func (s *Server) AddRouter(router zInterface.IRouter) {
-	s.Router = router
-	fmt.Println("Add Router Succeed!")
+func (s *Server) AddRouter(msgId uint32, router zInterface.IRouter) {
+	s.MessageHandler.AddRouter(msgId, router)
 }
 
 // NewServer 初始化 Server 模块的方法
 func NewServer() zInterface.IServer {
 	return &Server{
-		Name:      utils.GlobalObject.Name,
-		IPVersion: utils.GlobalObject.IPVersion,
-		IP:        utils.GlobalObject.Host,
-		Port:      utils.GlobalObject.TcpPort,
-		Router:    nil,
+		Name:           utils.GlobalObject.Name,
+		IPVersion:      utils.GlobalObject.IPVersion,
+		IP:             utils.GlobalObject.Host,
+		Port:           utils.GlobalObject.TcpPort,
+		MessageHandler: NewMessageHandler(),
 	}
 }
