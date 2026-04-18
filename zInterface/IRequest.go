@@ -8,4 +8,6 @@ type IRequest interface {
 	GetConnection() IConnection
 	// 获取当前连接的数据
 	GetData() []byte
+	// 获取当前连接的消息 ID
+	GetMsgID() uint32
 }

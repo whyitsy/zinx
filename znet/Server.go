@@ -54,7 +54,7 @@ func (s *Server) Start() {
 				fmt.Println("accept tcp error: ", err)
 				return
 			}
-
+			fmt.Printf("=========[Zinx] new connection id = %d===========\n", connID)
 			// 将新连接conn与callback方法进行绑定, 得到我们自己分装的连接模块
 			dealConn := NewConnection(conn, connID, s.Router)
 			connID++

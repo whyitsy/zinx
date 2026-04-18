@@ -1,0 +1,9 @@
+{
+  "Name":           "ZinxServerApp[V0.4]",
+  "Version":        "V0.4",
+  "IPVersion":      "tcp4",
+  "Host":           "0.0.0.0",
+  "TcpPort":        9999,
+  "MaxConn":        1000,
+  "MaxPackageSize": 512
+}

@@ -8,7 +8,7 @@ type Request struct {
 	// 已经和客户端建立好的连接
 	conn zInterface.IConnection
 	// 客户端请求的数据
-	data []byte
+	msg zInterface.IMessage
 }
 
 func (c *Request) GetConnection() zInterface.IConnection {
@@ -16,5 +16,9 @@ func (c *Request) GetConnection() zInterface.IConnection {
 }
 
 func (c *Request) GetData() []byte {
-	return c.data
+	return c.msg.GetData()
+}
+
+func (c *Request) GetMsgID() uint32 {
+	return c.msg.GetMsgId()
 }
