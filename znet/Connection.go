@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"zinx/utils"
 	"zinx/zInterface"
 )
 
@@ -34,7 +35,7 @@ func NewConnection(conn *net.TCPConn, connID uint32, messageHandler zInterface.I
 
 // 连接的读业务方法
 func (c *Connection) startReader() {
-	fmt.Println("[Reader Goroutine is running] ConnID =", c.connID)
+	fmt.Println("[Reader Goroutine is running]")
 	defer fmt.Println("[Reader exited!] ConnID =", c.connID)
 	defer c.Stop() // reader 退出了, 就调用 Stop 来关闭连接, 这样就会通知 writer 退出了
 
@@ -43,8 +44,12 @@ func (c *Connection) startReader() {
 		dp := NewDataPack()
 		headerBuf := make([]byte, dp.GetHeadLen())
 		if _, err := io.ReadFull(c.conn, headerBuf); err != nil {
-			fmt.Println("read head error: ", err) // wsarecv 错误是Windows系统特有的错误, 在linux上时 io.EOF 错误.
-			break
+			if err == io.EOF {
+				fmt.Println("client closed the connection: ", c.RemoteAddr())
+			} else {
+				fmt.Println("read head error: ", err) // wsarecv 错误是Windows系统特有的错误, 在linux上时 io.EOF 错误.
+				break
+			}
 		}
 		message, err := dp.UnPack(headerBuf)
 		if err != nil {
@@ -68,8 +73,12 @@ func (c *Connection) startReader() {
 			msg:  message,
 		}
 
-		// 这里是用 goroutine 来处理请求. TODO: 这里用另一个 goroutine 来处理请求 会比继续使用当前的 goroutine 来处理更好吗？
-		go c.MessageHandler.DoMessageHandler(&req)
+		// 判断是否启动工作池, 默认开启, 但可以通过配置文件将worker pool size设置为0来关闭工作池.
+		if utils.GlobalObject.WorkerPoolSize > 0 {
+			c.MessageHandler.SendMsgToTaskQueue(&req)
+		} else {
+			go c.MessageHandler.DoMessageHandler(&req)
+		}
 	}
 }
 

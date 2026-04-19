@@ -60,7 +60,6 @@ func (s *Server) Start() {
 			connID++
 
 			go dealConn.Start()
-
 		}
 	}()
 
@@ -71,6 +70,9 @@ func (s *Server) Stop() {
 }
 
 func (s *Server) Serve() {
+	// 启动Worker工作池, 让Worker工作池准备就绪
+	s.MessageHandler.StartWorkerPool()
+
 	// 不直接将 Start、Stop方法暴露给使用框架的用户, 而是使用 Serve 方法来启动服务器并阻塞, 把所有逻辑封装好.
 	s.Start()
 
